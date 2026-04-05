@@ -1,5 +1,4 @@
-import openai
-from openai import OpenAI, AsyncOpenAI
+import openai as _openai
 from dotenv import load_dotenv
 import os
 import json
@@ -11,212 +10,182 @@ load_dotenv()
 
 nest_asyncio.apply()
 
-try:
-    openai.models.list() 
-    print("Connected to OpenAI")
-except:
-    raise(Exception("Please provide OPENAI_API_KEY in .env file"))
 
 def query_function(func):
-        def wrapper(*args, **kwargs):
-            max_tries = 3
-            now_try = 0
-            while now_try < max_tries:
+    def wrapper(*args, **kwargs):
+        max_tries = 3
+        now_try = 0
+        while now_try < max_tries:
+            try:
+                res = func(*args, **kwargs)
+                break
+            except Exception as e:
+                now_try += 1
+                if now_try == max_tries:
+                    raise e
+        return res
+    return wrapper
 
-                try:
-                    res = func(*args, **kwargs)
-                    break
-                except Exception as e:
-                    now_try += 1
-                    if (now_try == max_tries):
-                        raise e
-            return res
-        return wrapper
 
-class OpenAI:
+class OpenAIClient:
+    """Synchronous OpenAI client wrapper."""
 
     def __init__(self) -> None:
-        self.client = openai.OpenAI()
-    
+        self.client = _openai.OpenAI()
+
     @query_function
-    def ask_json(self, prompt:str, model:str='gpt-4o', with_token:bool=False, temperature=1, tools=None):
+    def ask_json(self, prompt: str, model: str = 'gpt-4o', with_token: bool = False, temperature=1, tools=None):
         completion_response = self.client.chat.completions.create(
             model=model,
             messages=[{'role': 'user', 'content': prompt}],
-            response_format={ "type": "json_object" },
+            response_format={"type": "json_object"},
             temperature=temperature,
             tools=tools
         )
         if with_token:
-            response_object = {
+            return {
                 'result': json.loads(completion_response.choices[0].message.content)['result'],
                 'input_token': completion_response.usage.prompt_tokens,
                 'completion_token': completion_response.usage.completion_tokens,
                 'total_token': completion_response.usage.total_tokens
             }
-            return response_object
-        else:
-            return json.loads(completion_response.choices[0].message.content)
-    
-    @query_function
-    def ask_plain_text(self, prompt:str, model:str='gpt-4o', with_token:bool=False, temperature=1, tools=None):
+        return json.loads(completion_response.choices[0].message.content)
 
+    @query_function
+    def ask_plain_text(self, prompt: str, model: str = 'gpt-4o', with_token: bool = False, temperature=1, tools=None):
         completion_response = self.client.chat.completions.create(
             model=model,
             messages=[{'role': 'user', 'content': prompt}],
             temperature=temperature,
             tools=tools
         )
-
         if with_token:
-            response_object = {
+            return {
                 'result': completion_response.choices[0].message.content,
                 'input_token': completion_response.usage.prompt_tokens,
                 'completion_token': completion_response.usage.completion_tokens,
                 'total_token': completion_response.usage.total_tokens
             }
-            return response_object
-        else:
-            return completion_response.choices[0].message.content
-        
-    def text_embedding(self, input:list, model:str='text-embedding-3-large', with_token:bool=False):
+        return completion_response.choices[0].message.content
+
+    def text_embedding(self, input: list, model: str = 'text-embedding-3-large', with_token: bool = False):
         embedding_list = []
         sum_token = 0
         index = 0
         step = 500
         while index < len(input):
             embedding_response = self.client.embeddings.create(
-                input=input[index:index + step], 
-                model='text-embedding-3-large'
+                input=input[index:index + step],
+                model=model
             )
             index += step
             embedding_list += embedding_response.data
             sum_token = embedding_response.usage.total_tokens
         if with_token:
-            response_object = {
-                'embedding': embedding_list,
-                'token': sum_token
-            }
-            return response_object
-        else:
-            return embedding_list
-        
-    @query_function
-    def query(self, prompt:str, model:str='gpt-4o', with_token:bool=False, temperature=1, tools=None):
+            return {'embedding': embedding_list, 'token': sum_token}
+        return embedding_list
 
+    @query_function
+    def query(self, prompt: str, model: str = 'gpt-4o', with_token: bool = False, temperature=1, tools=None):
         completion_response = self.client.responses.create(
-            model="gpt-5",
+            model=model,
             reasoning={"effort": "low"},
             tools=tools,
             tool_choice="auto",
             input=prompt,
             temperature=temperature
         )
-
         if with_token:
-            response_object = {
+            return {
                 'result': completion_response.output[1].content[0].text,
                 'input_token': completion_response.usage.prompt_tokens,
                 'completion_token': completion_response.usage.completion_tokens,
                 'total_token': completion_response.usage.total_tokens
             }
-            return response_object
-        else:
-            return completion_response.output[1].content[0].text
+        return completion_response.output[1].content[0].text
 
-class AsyncOpenAI:
+
+class AsyncOpenAIClient:
+    """Asynchronous OpenAI client wrapper."""
 
     def __init__(self) -> None:
-        self.client = openai.AsyncOpenAI()
+        self.client = _openai.AsyncOpenAI()
 
-    async def ask_one_json_async(self, prompt: str, model:str='gpt-4o', with_token:bool=False, temperature=1):
+    async def ask_one_json_async(self, prompt: str, model: str = 'gpt-4o', with_token: bool = False, temperature=1):
         completion_response = await self.client.chat.completions.create(
             model=model,
             messages=[{'role': 'user', 'content': prompt}],
             response_format={"type": "json_object"},
             temperature=temperature
         )
-
         if with_token:
-            response_object = {
+            return {
                 'result': json.loads(completion_response.choices[0].message.content)['result'],
                 'input_token': completion_response.usage.prompt_tokens,
                 'completion_token': completion_response.usage.completion_tokens,
                 'total_token': completion_response.usage.total_tokens
             }
-            return response_object
-        else:
-            return (json.loads(completion_response.choices[0].message.content))
+        return json.loads(completion_response.choices[0].message.content)
 
-
-    async def _ask_many_async(self, prompt_list:List[str], model:str='gpt-4o', with_token:bool=False, temperature=1):
-        tasks = []
-        for prompt in prompt_list:
-            tasks.append(self.client.chat.completions.create(
+    async def _ask_many_async(self, prompt_list: List[str], model: str = 'gpt-4o', with_token: bool = False, temperature=1):
+        tasks = [
+            self.client.chat.completions.create(
                 model=model,
                 messages=[{'role': 'user', 'content': prompt}],
                 response_format={"type": "json_object"},
                 temperature=temperature
-            ))
-
-        res = await asyncio.gather(*tasks)
+            )
+            for prompt in prompt_list
+        ]
+        results = await asyncio.gather(*tasks)
         response_list = []
-
-        for completion_response in res:
+        for completion_response in results:
             if with_token:
-                response_object = {
+                response_list.append({
                     'result': json.loads(completion_response.choices[0].message.content)['result'],
                     'input_token': completion_response.usage.prompt_tokens,
                     'completion_token': completion_response.usage.completion_tokens,
                     'total_token': completion_response.usage.total_tokens
-                }
-                response_list.append(response_object)
+                })
             else:
                 response_list.append(json.loads(completion_response.choices[0].message.content))
-        
         return response_list
-    
-    def ask_many_json(self, prompt_list:List[str], model:str='gpt-4o', with_token:bool=False, temperature=1):
 
+    def ask_many_json(self, prompt_list: List[str], model: str = 'gpt-4o', with_token: bool = False, temperature=1):
         return asyncio.run(self._ask_many_async(prompt_list, model, with_token, temperature))
 
     @query_function
-    def ask_json(self, prompt:str, model:str='gpt-4o', with_token:bool=False, temperature=1):
+    def ask_json(self, prompt: str, model: str = 'gpt-4o', with_token: bool = False, temperature=1):
         completion_response = self.client.chat.completions.create(
             model=model,
             messages=[{'role': 'user', 'content': prompt}],
-            response_format={ "type": "json_object" },
+            response_format={"type": "json_object"},
             temperature=temperature
         )
         if with_token:
-            response_object = {
+            return {
                 'result': json.loads(completion_response.choices[0].message.content)['result'],
                 'input_token': completion_response.usage.prompt_tokens,
                 'completion_token': completion_response.usage.completion_tokens,
                 'total_token': completion_response.usage.total_tokens
             }
-            return response_object
-        else:
-            return json.loads(completion_response.choices[0].message.content)
-    
-    @query_function
-    def ask_plain_text(self, prompt:str, model:str='gpt-4o', with_token:bool=False, temperature=1):
+        return json.loads(completion_response.choices[0].message.content)
 
+    @query_function
+    def ask_plain_text(self, prompt: str, model: str = 'gpt-4o', with_token: bool = False, temperature=1):
         completion_response = self.client.chat.completions.create(
             model=model,
             messages=[{'role': 'user', 'content': prompt}],
             temperature=temperature
         )
-
         if with_token:
-            response_object = {
+            return {
                 'result': completion_response.choices[0].message.content,
                 'input_token': completion_response.usage.prompt_tokens,
                 'completion_token': completion_response.usage.completion_tokens,
                 'total_token': completion_response.usage.total_tokens
             }
-            return response_object
-        else:
-            return completion_response.choices[0].message.content
-        
-    
+        return completion_response.choices[0].message.content
+
+OpenAI = OpenAIClient
+AsyncOpenAI = AsyncOpenAIClient
