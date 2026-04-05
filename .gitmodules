@@ -1,0 +1,6 @@
+[submodule "seml_frontend"]
+	path = seml_frontend
+	url = https://github.com/Iamhuman02/seml_frontend.git
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/Iamhuman02/seml_frontend.git
