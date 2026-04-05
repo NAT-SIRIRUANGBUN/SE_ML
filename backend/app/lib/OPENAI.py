@@ -4,11 +4,8 @@ import os
 import json
 from typing import List
 import asyncio
-import nest_asyncio
 
 load_dotenv()
-
-nest_asyncio.apply()
 
 
 def query_function(func):

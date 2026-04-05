@@ -1,10 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.api.routes import transcribe
 
 settings = get_settings()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load Whisper model immediately on startup
+    print(f"🔄 Loading Whisper model '{settings.whisper_model}' ...")
+    transcribe._whisper_client = transcribe.WhisperClient(model=settings.whisper_model)
+    print("✅ Whisper model loaded!")
+    yield
+    transcribe._whisper_client = None
 
 app = FastAPI(
     title=settings.app_name,
@@ -12,6 +22,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

@@ -1,0 +1,10 @@
+.git
+.env
+__pycache__
+*.ipynb
+Categorized-Data/
+*.csv
+.vscode/
+.conda
+venv/
+.venv/
