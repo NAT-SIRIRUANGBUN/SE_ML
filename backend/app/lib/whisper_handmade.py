@@ -1,23 +1,49 @@
-import whisper
+from faster_whisper import WhisperModel
 from app.lib.OPENAI import OpenAIClient
 
 
 class WhisperClient:
     """Wraps OpenAI Whisper for STT and Thai→English cleanup."""
 
-    def __init__(self, model: str = 'medium'):
-        self.speech_model = whisper.load_model(model)
+    def __init__(self, model: str = 'large'):
+        model_name = "large-v3" if model == "large" else model
+        self.speech_model = WhisperModel(model_name, device="auto", compute_type="default")
         self.openai = OpenAIClient()
 
-    def speech_to_text(self, file_path: str, initial_prompt: str = None, language: str = 'th') -> dict:
+    def speech_to_text(self, file_path: str, initial_prompt: str = None, language: str = 'th', progress_callback=None) -> dict:
         """Run Whisper transcription and return the raw result dict."""
-        result = self.speech_model.transcribe(
-            audio=file_path,
+        segments_generator, info = self.speech_model.transcribe(
+            file_path,
             word_timestamps=True,
             initial_prompt=initial_prompt,
             language=language
         )
-        return result
+        
+        result_dict = {"text": "", "segments": []}
+        
+        for segment in segments_generator:
+            if progress_callback and info.duration > 0:
+                percent = min(99, int((segment.end / info.duration) * 100))
+                progress_callback(percent)
+                
+            result_dict["text"] += segment.text + " "
+            
+            words_list = []
+            if segment.words:
+                for w in segment.words:
+                    words_list.append({
+                        "word": w.word,
+                        "probability": w.probability
+                    })
+                    
+            result_dict["segments"].append({
+                "id": segment.id,
+                "text": segment.text,
+                "words": words_list
+            })
+            
+        result_dict["text"] = result_dict["text"].strip()
+        return result_dict
 
     def thai_to_english(self, data: dict) -> str:
         """Post-process Whisper output: convert Thai transliterations back to English words."""

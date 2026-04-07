@@ -11,5 +11,5 @@ openai>=1.30.0
 python-dotenv>=1.0.0
 
 # --- Whisper (local model) ---
-openai-whisper>=20231117
+faster-whisper>=1.0.1
 nest-asyncio>=1.6.0

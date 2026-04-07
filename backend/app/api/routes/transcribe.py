@@ -42,10 +42,15 @@ def _save_upload_to_temp(upload: UploadFile) -> str:
 
 def process_audio(job_id: str, file_path: str, whisper: WhisperClient):
     try:
+        def update_progress(percent: int):
+            jobs[job_id]["progress"] = percent
+            
         jobs[job_id]["status"] = "processing"
-        raw_result = whisper.speech_to_text(file_path=file_path)
+        jobs[job_id]["progress"] = 0
+        raw_result = whisper.speech_to_text(file_path=file_path, progress_callback=update_progress)
         cleaned_text = whisper.thai_to_english(raw_result)
         jobs[job_id]["status"] = "completed"
+        jobs[job_id]["progress"] = 100
         jobs[job_id]["result"] = cleaned_text
     except Exception as e:
         jobs[job_id]["status"] = "failed"
@@ -63,7 +68,7 @@ async def transcribe(
 ):
     tmp_path = _save_upload_to_temp(file)
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {"status": "queued", "result": None, "error": None}
+    jobs[job_id] = {"status": "queued", "progress": 0, "result": None, "error": None}
     
     background_tasks.add_task(process_audio, job_id, tmp_path, whisper)
     return {"job_id": job_id, "status": "queued"}
