@@ -1,0 +1,60 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - kp
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+
+env:
+  PROJECT_ID: fifth-sunup-492317-g5
+  REGION: asia-southeast1
+  SERVICE_NAME: stt-api
+  IMAGE_NAME: asia-southeast1-docker.pkg.dev/fifth-sunup-492317-g5/thai-stt-repo/stt-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/495176365186/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-action-deploy@fifth-sunup-492317-g5.iam.gserviceaccount.com'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker to Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and Push Docker image
+        run: |
+          cd backend
+          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} -t ${{ env.IMAGE_NAME }}:latest .
+          docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --memory 16Gi \
+            --cpu 4 \
+            --timeout 3600 \
+            --update-env-vars "WHISPER_MODEL=small"
