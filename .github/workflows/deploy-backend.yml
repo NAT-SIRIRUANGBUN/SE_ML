@@ -57,4 +57,4 @@ jobs:
             --memory 16Gi \
             --cpu 4 \
             --timeout 3600 \
-            --update-env-vars "WHISPER_MODEL=small"
+            --update-env-vars "WHISPER_MODEL=large"
